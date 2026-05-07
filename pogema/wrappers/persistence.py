@@ -2,11 +2,12 @@ from gymnasium import Wrapper
 
 
 class AgentState:
-    def __init__(self, x, y, tx, ty, step, active):
+    def __init__(self, x, y, tx, ty, heading, step, active):
         self.x = x
         self.y = y
         self.tx = tx
         self.ty = ty
+        self.heading = heading
         self.step = step
         self.active = active
 
@@ -16,6 +17,9 @@ class AgentState:
     def get_target_xy(self):
         return self.tx, self.ty
 
+    def get_heading(self):
+        return self.heading
+
     def is_active(self):
         return self.active
 
@@ -24,10 +28,10 @@ class AgentState:
 
     def __eq__(self, other):
         o = other
-        return self.x == o.x and self.y == o.y and self.tx == o.tx and self.ty == o.ty and self.active == o.active
+        return self.x == o.x and self.y == o.y and self.tx == o.tx and self.ty == o.ty and self.heading == o.heading and self.active == o.active
 
     def __str__(self):
-        return str([self.x, self.y, self.tx, self.ty, self.step, self.active])
+        return str([self.x, self.y, self.tx, self.ty, self.heading, self.step, self.active])
 
 
 class PersistentWrapper(Wrapper):
@@ -36,6 +40,42 @@ class PersistentWrapper(Wrapper):
         self._step = None
         self._agent_states = None
         self._xy_offset = xy_offset
+
+    def __getattr__(self, name):
+        env = object.__getattribute__(self, "env")
+        while True:
+            try:
+                return object.__getattribute__(env, name)
+            except AttributeError:
+                pass
+            if not hasattr(env, "env"):
+                break
+            env = object.__getattribute__(env, "env")
+        raise AttributeError(f"No wrapped env attribute '{name}'")
+
+    @property
+    def grid_config(self):
+        return self._unwrap_env_attr("grid_config")
+
+    @property
+    def grid(self):
+        return self._unwrap_env_attr("grid")
+
+    def _unwrap_env_attr(self, attr_name):
+        env = self
+        while hasattr(env, "env"):
+            env = object.__getattribute__(env, "env")
+            try:
+                return object.__getattribute__(env, attr_name)
+            except AttributeError:
+                continue
+        raise AttributeError(f"No wrapped env attribute '{attr_name}'")
+
+    def get_num_agents(self):
+        get_num_agents = self._unwrap_env_attr("get_num_agents")
+        if callable(get_num_agents):
+            return get_num_agents()
+        raise AttributeError("Wrapped env chain does not expose get_num_agents")
 
     def step(self, action):
         result = self.env.step(action)
@@ -62,7 +102,7 @@ class PersistentWrapper(Wrapper):
                     self.grid.show_agent(idx)
                 else:
                     self.grid.hide_agent(idx)
-                self.grid.move_agent_to_cell(idx, state.x, state.y)
+                self.grid.move_agent_to_cell(idx, state.x, state.y, heading=state.heading)
                 self.grid.finishes_xy[idx] = state.tx, state.ty
 
         return True
@@ -70,13 +110,14 @@ class PersistentWrapper(Wrapper):
     def _get_agent_state(self, grid, agent_idx):
         x, y = grid.positions_xy[agent_idx]
         tx, ty = grid.finishes_xy[agent_idx]
+        heading = grid.get_heading(agent_idx)
         active = grid.is_active[agent_idx]
         if self._xy_offset:
             x += self._xy_offset
             y += self._xy_offset
             tx += self._xy_offset
             ty += self._xy_offset
-        return AgentState(x, y, tx, ty, self._step, active)
+        return AgentState(x, y, tx, ty, heading, self._step, active)
 
     def reset(self, **kwargs):
         result = self.env.reset(**kwargs)

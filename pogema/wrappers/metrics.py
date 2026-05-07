@@ -12,11 +12,18 @@ class AbstractMetric(Wrapper):
         super().__init__(env)
         self._current_step = 0
 
+    @property
+    def grid_config(self):
+        return self.env.grid_config
+
+    def get_num_agents(self):
+        return self.env.get_num_agents()
+
     def step(self, action):
         obs, reward, terminated, truncated, infos = self.env.step(action)
         finished = all(truncated) or all(terminated)
 
-        metric = self._compute_stats(self._current_step, self.was_on_goal, finished)
+        metric = self._compute_stats(self._current_step, self._get_was_on_goal(), finished)
         self._current_step += 1
         if finished:
             self._current_step = 0
@@ -27,6 +34,14 @@ class AbstractMetric(Wrapper):
             infos[0]['metrics'].update(**metric)
 
         return obs, reward, terminated, truncated, infos
+
+    def _get_was_on_goal(self):
+        env = self
+        while env is not None:
+            if "was_on_goal" in env.__dict__:
+                return env.was_on_goal
+            env = getattr(env, "env", None)
+        raise AttributeError("Missing was_on_goal on wrapped environment chain")
 
 
 class LifeLongAverageThroughputMetric(AbstractMetric):

@@ -57,11 +57,11 @@ class PyMarlPogema:
     # noinspection PyUnusedLocal
     @staticmethod
     def get_avail_agent_actions(agent_id):
-        return list(range(5))
+        return list(range(4))
 
     @staticmethod
     def get_total_actions():
-        return 5
+        return 4
 
     def reset(self):
         self._grid_config = self.env.grid_config

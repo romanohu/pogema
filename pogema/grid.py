@@ -11,6 +11,7 @@ from .utils import render_grid
 
 
 class Grid:
+    _ORIENTED_HEADING_DELTAS = [(-1, 0), (0, 1), (1, 0), (0, -1)]
 
     def __init__(self, grid_config: GridConfig, add_artificial_border: bool = True, num_retries=10):
 
@@ -78,6 +79,7 @@ class Grid:
         self.positions_xy = self.starts_xy
         self._initial_xy = deepcopy(self.starts_xy)
         self.is_active = {agent_id: True for agent_id in range(self.config.num_agents)}
+        self.headings = self._init_headings()
 
     def add_artificial_border(self):
         gc = self.config
@@ -130,6 +132,68 @@ class Grid:
 
         return positions
 
+    def _init_headings(self):
+        if self.config.initial_headings is None:
+            return [0] * self.config.num_agents
+        if len(self.config.initial_headings) != self.config.num_agents:
+            raise ValueError(
+                f"initial_headings length must be {self.config.num_agents}, got {len(self.config.initial_headings)}"
+            )
+        return [int(h) % 4 for h in self.config.initial_headings]
+
+    def get_heading(self, agent_id):
+        return self.headings[agent_id]
+
+    def get_headings(self):
+        return deepcopy(self.headings)
+
+    def _oriented_delta(self, heading):
+        return self._ORIENTED_HEADING_DELTAS[int(heading) % 4]
+
+    def _action_to_next_state(self, agent_id, action):
+        heading = int(self.headings[agent_id])
+        action = int(action)
+        x, y = self.positions_xy[agent_id]
+
+        if action == 0:  # forward
+            dx, dy = self._oriented_delta(heading)
+            return x + dx, y + dy, heading
+        if action == 1:  # turn_left
+            return x, y, (heading + 3) % 4
+        if action == 2:  # turn_right
+            return x, y, (heading + 1) % 4
+        if action == 3:  # wait
+            return x, y, heading
+        raise ValueError(f'Unknown action: {action} for scheme {self.config.action_scheme}')
+
+    def get_action_target(self, agent_id, action):
+        next_x, next_y, next_heading = self._action_to_next_state(agent_id, action)
+        return (next_x, next_y), next_heading
+
+    def move(self, agent_id, action):
+        x, y = self.positions_xy[agent_id]
+        next_x, next_y, next_heading = self._action_to_next_state(agent_id, action)
+        if (x, y) != (next_x, next_y):
+            if self.obstacles[next_x, next_y] != self.config.FREE:
+                next_x, next_y = x, y
+            elif self.positions[next_x, next_y] != self.config.FREE:
+                next_x, next_y = x, y
+            else:
+                self.positions[x, y] = self.config.FREE
+                self.positions[next_x, next_y] = self.config.OBSTACLE
+                self.positions_xy[agent_id] = (next_x, next_y)
+        self.positions_xy[agent_id] = (next_x, next_y)
+        self.headings[agent_id] = next_heading
+
+    def move_without_checks(self, agent_id, action):
+        x, y = self.positions_xy[agent_id]
+        next_x, next_y, next_heading = self._action_to_next_state(agent_id, action)
+        if (x, y) != (next_x, next_y):
+            self.positions[x, y] = self.config.FREE
+            self.positions[next_x, next_y] = self.config.OBSTACLE
+        self.positions_xy[agent_id] = (next_x, next_y)
+        self.headings[agent_id] = next_heading
+
     def get_agents_xy(self, only_active=False, ignore_borders=False):
         return self._prepare_positions(deepcopy(self.positions_xy), only_active, ignore_borders)
 
@@ -180,12 +244,16 @@ class Grid:
         return 2, full_radius, full_radius
 
     def get_num_actions(self):
-        return len(self.config.MOVES)
+        return self.config.get_num_actions()
 
     def get_obstacles_for_agent(self, agent_id):
         x, y = self.positions_xy[agent_id]
         r = self.config.obs_radius
         return self.obstacles[x - r:x + r + 1, y - r:y + r + 1].astype(np.float32)
+
+    def apply_heading_only(self, agent_id, action):
+        _, _, next_heading = self._action_to_next_state(agent_id, action)
+        self.headings[agent_id] = next_heading
 
     def get_positions(self, agent_id):
         x, y = self.positions_xy[agent_id]
@@ -218,7 +286,7 @@ class Grid:
     def render(self, mode='human'):
         render_grid(self.obstacles, self.positions_xy, self.finishes_xy, self.is_active, mode=mode)
 
-    def move_agent_to_cell(self, agent_id, x, y):
+    def move_agent_to_cell(self, agent_id, x, y, heading=None):
         if self.positions[self.positions_xy[agent_id]] == self.config.FREE:
             raise KeyError("Agent {} is not in the map".format(agent_id))
         self.positions[self.positions_xy[agent_id]] = self.config.FREE
@@ -226,27 +294,11 @@ class Grid:
             raise ValueError(f"Can't force agent to blocked position {x} {y}")
         self.positions_xy[agent_id] = x, y
         self.positions[self.positions_xy[agent_id]] = self.config.OBSTACLE
+        if self.config.action_scheme == 'oriented_v1' and heading is not None:
+            self.headings[agent_id] = int(heading) % 4
 
     def has_obstacle(self, x, y):
         return self.obstacles[x, y] == self.config.OBSTACLE
-
-    def move_without_checks(self, agent_id, action):
-        x, y = self.positions_xy[agent_id]
-        dx, dy = self.config.MOVES[action]
-        self.positions[x, y] = self.config.FREE
-        self.positions[x+dx, y+dy] = self.config.OBSTACLE
-        self.positions_xy[agent_id] = (x+dx, y+dy)
-
-    def move(self, agent_id, action):
-        x, y = self.positions_xy[agent_id]
-        dx, dy = self.config.MOVES[action]
-        if self.obstacles[x + dx, y + dy] == self.config.FREE:
-            if self.positions[x + dx, y + dy] == self.config.FREE:
-                self.positions[x, y] = self.config.FREE
-                x += dx
-                y += dy
-                self.positions[x, y] = self.config.OBSTACLE
-        self.positions_xy[agent_id] = (x, y)
 
     def on_goal(self, agent_id):
         return self.positions_xy[agent_id] == self.finishes_xy[agent_id]

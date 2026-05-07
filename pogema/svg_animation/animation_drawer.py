@@ -29,9 +29,13 @@ class SvgSettings:
     obstacle_color: str = '#84A1AE'
     ego_color: str = '#c1433c'
     ego_other_color: str = '#6e81af'
+    heading_color: str = '#000000'
     shaded_opacity: float = 0.2
     egocentric_shaded: bool = True
     stroke_dasharray: int = 25
+    heading_marker_stroke_width: int = 6
+    heading_marker_start_scale: float = 0.18
+    heading_marker_end_scale: float = 0.58
 
     colors: tuple = (
         '#c1433c',
@@ -85,9 +89,13 @@ class Drawing:
 
         definitions = f'''
         <rect id="obstacle" width="{self.svg_settings.r * 2}" height="{self.svg_settings.r * 2}" fill="{self.svg_settings.obstacle_color}" rx="{self.svg_settings.rx}"/>
+        <marker id="heading-arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+            <path d="M 0 0 L 8 4 L 0 8 z" fill="context-stroke"/>
+        </marker>
         <style>
         .line {{stroke: {self.svg_settings.obstacle_color}; stroke-width: {self.svg_settings.stroke_width};}}
         .agent {{r: {self.svg_settings.r};}}
+        .heading-marker {{stroke: {self.svg_settings.heading_color}; stroke-width: {self.svg_settings.heading_marker_stroke_width}; fill: none; stroke-linecap: round;}}
         .target {{fill: none; stroke-width: {self.svg_settings.stroke_width}; r: {self.svg_settings.r};}}
         </style>
         '''
@@ -112,19 +120,22 @@ class AnimationDrawer:
 
         agents = []
         targets = []
+        heading_markers = []
 
         if gh.config.show_agents:
             agents = self.create_agents(gh)
             targets = self.create_targets(gh)
+            heading_markers = self.create_heading_markers(gh)
 
             if not gh.config.static:
                 self.animate_agents(agents, gh)
                 self.animate_targets(targets, gh)
+                self.animate_heading_markers(heading_markers, gh)
         if gh.config.show_grid_lines:
             grid_lines = self.create_grid_lines(gh, render_width, render_height)
             for line in grid_lines:
                 drawing.add_element(line)
-        for obj in [*obstacles, *agents, *targets]:
+        for obj in [*obstacles, *agents, *targets, *heading_markers]:
             drawing.add_element(obj)
 
         if gh.config.egocentric_idx is not None:
@@ -225,6 +236,49 @@ class AnimationDrawer:
             agent.add_animation(self.compressed_anim('visibility', visibility, gh.svg_settings.time_scale))
             if opacity:
                 agent.add_animation(self.compressed_anim('opacity', opacity, gh.svg_settings.time_scale))
+
+    @staticmethod
+    def _heading_offset_for_heading(heading, line_length):
+        heading_offsets = {
+            0: (0, line_length),
+            1: (line_length, 0),
+            2: (0, -line_length),
+            3: (-line_length, 0),
+        }
+        return heading_offsets[int(heading) % 4]
+
+    @staticmethod
+    def _heading_segment_for_heading(svg_settings, heading):
+        start_offset = svg_settings.r * svg_settings.heading_marker_start_scale
+        end_offset = svg_settings.r * svg_settings.heading_marker_end_scale
+        start_dx, start_dy = AnimationDrawer._heading_offset_for_heading(heading, start_offset)
+        end_dx, end_dy = AnimationDrawer._heading_offset_for_heading(heading, end_offset)
+        return start_dx, start_dy, end_dx, end_dy
+
+    def animate_heading_markers(self, heading_markers, grid_holder):
+        gh = grid_holder
+        for agent_idx, marker in enumerate(heading_markers):
+            x1_path = []
+            y1_path = []
+            x2_path = []
+            y2_path = []
+            for state in gh.history[agent_idx]:
+                x, y = state.get_xy()
+                cx = gh.svg_settings.draw_start + y * gh.svg_settings.scale_size
+                cy = -gh.svg_settings.draw_start + -(gh.width - x - 1) * gh.svg_settings.scale_size
+                start_dx, start_dy, end_dx, end_dy = self._heading_segment_for_heading(
+                    gh.svg_settings, state.get_heading()
+                )
+                x1_path.append(str(cx + start_dx))
+                y1_path.append(str(cy - start_dy))
+                x2_path.append(str(cx + end_dx))
+                y2_path.append(str(cy - end_dy))
+            visibility = ['visible' if state.is_active() else 'hidden' for state in gh.history[agent_idx]]
+            marker.add_animation(self.compressed_anim('x1', x1_path, gh.svg_settings.time_scale))
+            marker.add_animation(self.compressed_anim('y1', y1_path, gh.svg_settings.time_scale))
+            marker.add_animation(self.compressed_anim('x2', x2_path, gh.svg_settings.time_scale))
+            marker.add_animation(self.compressed_anim('y2', y2_path, gh.svg_settings.time_scale))
+            marker.add_animation(self.compressed_anim('visibility', visibility, gh.svg_settings.time_scale))
 
     @classmethod
     def compressed_anim(cls, attr_name, tokens, time_scale, rep_cnt='indefinite'):
@@ -366,6 +420,32 @@ class AnimationDrawer:
             agents.append(Circle(**circle_settings))
 
         return agents
+
+    def create_heading_markers(self, grid_holder):
+        gh = grid_holder
+        initial_positions = [state[0].get_xy() for state in gh.history if state[0].is_active()]
+        markers = []
+
+        for idx, (x, y) in enumerate(initial_positions):
+            cx = gh.svg_settings.draw_start + y * gh.svg_settings.scale_size
+            cy = gh.svg_settings.draw_start + (gh.width - x - 1) * gh.svg_settings.scale_size
+            heading = gh.history[idx][0].get_heading()
+            start_dx, start_dy, end_dx, end_dy = self._heading_segment_for_heading(
+                gh.svg_settings, heading
+            )
+
+            marker_settings = {
+                'x1': cx + start_dx,
+                'y1': cy + start_dy,
+                'x2': cx + end_dx,
+                'y2': cy + end_dy,
+                'class': 'heading-marker',
+                'marker_end': 'url(#heading-arrowhead)',
+                'stroke': gh.svg_settings.heading_color,
+            }
+
+            markers.append(Line(**marker_settings))
+        return markers
 
     @staticmethod
     def create_targets(grid_holder):

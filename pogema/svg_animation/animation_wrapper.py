@@ -1,6 +1,6 @@
 import os
 from itertools import cycle
-from gymnasium import logger, Wrapper
+from gymnasium import Wrapper
 
 from pogema import GridConfig
 from pogema.svg_animation.animation_drawer import AnimationConfig, SvgSettings, GridHolder, AnimationDrawer
@@ -25,6 +25,10 @@ class AnimationMonitor(Wrapper):
 
         self._episode_idx = 0
 
+    @property
+    def grid_config(self):
+        return self.env.grid_config
+
     def step(self, action):
         """
         Saves information about the episode.
@@ -43,7 +47,6 @@ class AnimationMonitor(Wrapper):
             if save_tau:
                 if (self._episode_idx + 1) % save_tau or save_tau == 1:
                     if not os.path.exists(self.animation_config.directory):
-                        logger.info(f"Creating pogema monitor directory {self.animation_config.directory}", )
                         os.makedirs(self.animation_config.directory, exist_ok=True)
 
                     path = os.path.join(self.animation_config.directory,

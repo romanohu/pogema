@@ -2,6 +2,13 @@ from gymnasium.wrappers import TimeLimit
 
 
 class MultiTimeLimit(TimeLimit):
+    @property
+    def grid_config(self):
+        return self.env.grid_config
+
+    def get_num_agents(self):
+        return self.env.get_num_agents()
+
     def step(self, action):
         observation, reward, terminated, truncated, info = self.env.step(action)
         self._elapsed_steps += 1

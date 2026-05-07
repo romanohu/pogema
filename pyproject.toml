@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pogema-agv"
+version = "0.1.0"
+description = "AGV-oriented four-action fork of Pogema"
+requires-python = ">=3.10"
+dependencies = [
+    "gymnasium>=0.28",
+    "numpy>=1.24",
+    "pettingzoo>=1.24",
+    "pydantic>=2.0.0",
+    "typing-extensions>=4.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pogema*"]

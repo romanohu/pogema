@@ -85,7 +85,7 @@ def render_grid(obstacles, positions_xy=None, targets_xy=None, is_active=None, m
 
 
 class CommonSettings(BaseModel):
-    MOVES: list = [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1], ]
+    MOVES: list = [[0, 0], [0, 0], [0, 0], [0, 0]]
     FREE: Literal[0] = 0
     OBSTACLE: Literal[1] = 1
     empty_outside: bool = True

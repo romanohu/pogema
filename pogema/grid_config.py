@@ -1,5 +1,5 @@
 import sys
-from typing import Optional, Union
+from typing import ClassVar, Optional, Union
 from pydantic import field_validator, model_validator
 
 from pogema.utils import CommonSettings
@@ -8,6 +8,12 @@ from typing_extensions import Literal
 
 
 class GridConfig(CommonSettings, ):
+    ACTION_MOVES: ClassVar[list[list[int]]] = [[0, 0], [0, 0], [0, 0], [0, 0]]
+    ACTION_FORWARD: ClassVar[int] = 0
+    ACTION_TURN_LEFT: ClassVar[int] = 1
+    ACTION_TURN_RIGHT: ClassVar[int] = 2
+    ACTION_WAIT: ClassVar[int] = 3
+
     on_target: Literal['finish', 'nothing', 'restart'] = 'finish'
     seed: Optional[int] = None
     width: Optional[int] = None
@@ -20,6 +26,8 @@ class GridConfig(CommonSettings, ):
     num_agents: Optional[int] = None
     possible_agents_xy: Optional[list] = None
     possible_targets_xy: Optional[list] = None
+    action_scheme: Literal['oriented_v1'] = 'oriented_v1'
+    initial_headings: Optional[list] = None
     collision_system: Literal['block_both', 'priority', 'soft'] = 'priority'
     persistent: bool = False
     observation_type: Literal['POMAPF', 'MAPF', 'default'] = 'default'
@@ -27,7 +35,7 @@ class GridConfig(CommonSettings, ):
 
     map_name: Optional[str] = None
 
-    integration: Literal['SampleFactory', 'PyMARL', 'rllib', 'gymnasium', 'PettingZoo'] = None
+    integration: Optional[Literal['SampleFactory', 'gymnasium', 'PettingZoo']] = None
     max_episode_steps: int = 64
     auto_reset: Optional[bool] = None
 
@@ -166,6 +174,30 @@ class GridConfig(CommonSettings, ):
     def obs_radius_must_be_positive(cls, v):
         assert 1 <= v <= 128, "obs_radius must be in [1, 128]"
         return v
+
+    @field_validator('initial_headings')
+    def initial_headings_validation(cls, v):
+        if v is None:
+            return v
+        if not isinstance(v, (list, tuple)):
+            raise ValueError("initial_headings must be a list of integers")
+        if len(v) == 0:
+            raise ValueError("initial_headings must contain headings for all agents")
+        for heading in v:
+            if not isinstance(heading, int):
+                raise ValueError("Each heading must be an integer")
+            if heading < 0 or heading > 3:
+                raise ValueError("Each heading must be in [0, 3]")
+        return [int(heading) for heading in v]
+
+    def get_action_moves(self):
+        return self.ACTION_MOVES
+
+    def get_num_actions(self):
+        return len(self.ACTION_MOVES)
+
+    def get_wait_action(self):
+        return self.ACTION_WAIT
 
     @field_validator('map')
     def map_validation(cls, v, values):

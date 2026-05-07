@@ -36,12 +36,11 @@ class GridMemory:
         r = self._memory.shape[0] // 2
         if -r <= x <= r and -r <= y <= r:
             return self._memory[r + x, r + y]
-        else:
-            return False
+        return False
 
 
 class Node:
-    def __init__(self, coord: (int, int) = (INF, INF), g: int = 0, h: int = 0):
+    def __init__(self, coord: tuple[int, int] = (INF, INF), g: int = 0, h: int = 0):
         self.i, self.j = coord
         self.g = g
         self.h = h
@@ -50,10 +49,9 @@ class Node:
     def __lt__(self, other):
         if self.f != other.f:
             return self.f < other.f
-        elif self.g != other.g:
+        if self.g != other.g:
             return self.g < other.g
-        else:
-            return self.i < other.i or self.j < other.j
+        return self.i < other.i or self.j < other.j
 
 
 def h(node, target):
@@ -63,56 +61,71 @@ def h(node, target):
 
 
 def a_star(start, target, grid: GridMemory, max_steps=10000):
-    open_ = list()
+    open_ = []
     closed = {start: None}
-
     heappush(open_, Node(start, 0, h(start, target)))
 
     for step in range(int(max_steps)):
+        if not open_:
+            break
         u = heappop(open_)
+        if (u.i, u.j) == target:
+            break
 
-        for n in [(u.i - 1, u.j), (u.i + 1, u.j), (u.i, u.j - 1), (u.i, u.j + 1)]:
+        for n in [(u.i - 1, u.j), (u.i, u.j + 1), (u.i + 1, u.j), (u.i, u.j - 1)]:
             if not grid.is_obstacle(*n) and n not in closed:
                 heappush(open_, Node(n, u.g + 1, h(n, target)))
                 closed[n] = (u.i, u.j)
-
-        if step >= max_steps or (u.i, u.j) == target or len(open_) == 0:
-            break
 
     next_node = target if target in closed else None
     path = []
     while next_node is not None:
         path.append(next_node)
         next_node = closed[next_node]
-
     return list(reversed(path))
 
 
 class AStarAgent:
-    def __init__(self, seed=0):
-        self._moves = GridConfig().MOVES
-        self._reverse_actions = {tuple(self._moves[i]): i for i in range(len(self._moves))}
+    _DELTA_TO_HEADING = {(-1, 0): 0, (0, 1): 1, (1, 0): 2, (0, -1): 3}
 
+    def __init__(self, seed=0):
+        self._cfg = GridConfig()
         self._gm = None
         self._saved_xy = None
         self.clear_state()
         self._rnd = np.random.default_rng(seed)
 
-    def act(self, obs):
-        xy, target_xy, obstacles, agents = obs['xy'], obs['target_xy'], obs['obstacles'], obs['agents']
+    def _action_towards(self, heading: int, next_delta: tuple[int, int]) -> int:
+        desired_heading = self._DELTA_TO_HEADING.get(next_delta)
+        if desired_heading is None:
+            return self._cfg.ACTION_WAIT
+        turn = (desired_heading - int(heading)) % 4
+        if turn == 0:
+            return self._cfg.ACTION_FORWARD
+        if turn == 3:
+            return self._cfg.ACTION_TURN_LEFT
+        if turn == 1:
+            return self._cfg.ACTION_TURN_RIGHT
+        return self._cfg.ACTION_TURN_RIGHT
 
+    def act(self, obs):
+        xy = tuple(obs['xy'])
+        target_xy = tuple(obs['target_xy'])
+        obstacles = obs['obstacles']
+        heading = int(obs.get('heading', obs.get('global_heading', 0)))
 
         if self._saved_xy is not None and h(self._saved_xy, xy) > 1:
-            raise IndexError("Agent moved more than 1 step. Please, call clear_state method before new episode.")
+            raise IndexError("Agent moved more than 1 step. Please call clear_state before a new episode.")
         if self._saved_xy is not None and h(self._saved_xy, xy) == 0 and xy != target_xy:
-            return self._rnd.integers(len(self._moves))
+            return int(self._rnd.integers(self._cfg.get_num_actions()))
+
         self._gm.update(*xy, obstacles)
-        path = a_star(xy, target_xy, self._gm, )
+        path = a_star(xy, target_xy, self._gm)
         if len(path) <= 1:
-            action = 0
+            action = self._cfg.ACTION_WAIT
         else:
             (x, y), (tx, ty), *_ = path
-            action = self._reverse_actions[tx - x, ty - y]
+            action = self._action_towards(heading, (tx - x, ty - y))
 
         self._saved_xy = xy
         return action
