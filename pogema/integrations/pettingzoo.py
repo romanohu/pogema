@@ -10,6 +10,11 @@ def parallel_env(grid_config: GridConfig = GridConfig()):
 
 
 class PogemaParallel:
+    @staticmethod
+    def _format_observation(observation):
+        if hasattr(observation, "astype"):
+            return observation.astype(np.float32)
+        return observation
 
     def state(self):
         return self.pogema.get_state()
@@ -41,15 +46,20 @@ class PogemaParallel:
         observations, info = self.pogema.reset(seed=seed, options=options)
         self.agents = self.possible_agents[:]
         self.num_moves = 0
-        observations = {agent: observations[self.agent_name_mapping[agent]].astype(np.float32) for agent in self.agents}
-        return observations
+        observations = {
+            agent: self._format_observation(observations[self.agent_name_mapping[agent]])
+            for agent in self.agents
+        }
+        infos = {agent: info[self.agent_name_mapping[agent]] for agent in self.agents}
+        return observations, infos
 
     def step(self, actions):
         anm = self.agent_name_mapping
 
-        actions = [actions[agent] if agent in actions else 0 for agent in self.possible_agents]
+        wait_action = self.pogema.grid_config.get_wait_action()
+        actions = [actions[agent] if agent in actions else wait_action for agent in self.possible_agents]
         observations, rewards, terminated, truncated, infos = self.pogema.step(actions)
-        d_observations = {agent: observations[anm[agent]].astype(np.float32) for agent in
+        d_observations = {agent: self._format_observation(observations[anm[agent]]) for agent in
                           self.agents}
         d_rewards = {agent: rewards[anm[agent]] for agent in self.agents}
         d_terminated = {agent: terminated[anm[agent]] for agent in self.agents}

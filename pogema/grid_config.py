@@ -41,6 +41,12 @@ class GridConfig(CommonSettings, ):
 
     @model_validator(mode="before")
     def validate_dimensions_and_positions(cls, values):
+        if values.get('num_agents') is None:
+            if values.get('agents_xy') is not None:
+                values['num_agents'] = len(values['agents_xy'])
+            else:
+                values['num_agents'] = 1
+
         width_provided = values.get('width') is not None
         height_provided = values.get('height') is not None
 

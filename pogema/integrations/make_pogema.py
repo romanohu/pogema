@@ -25,7 +25,7 @@ class SingleAgentWrapper(Wrapper):
         return observations[0], rewards[0], terminated[0], truncated[0], infos[0]
 
     def reset(self, seed: Optional[int] = None, return_info: bool = True, options: Optional[dict] = None):
-        observations, infos = self.env.reset(seed=seed, return_info=True, options=options)
+        observations, infos = self.env.reset(seed=seed, options=options)
         if return_info:
             return observations[0], infos[0]
         return observations[0]

@@ -1,4 +1,5 @@
 import sys
+from typing import ClassVar
 
 from pydantic import BaseModel
 
@@ -86,6 +87,7 @@ def render_grid(obstacles, positions_xy=None, targets_xy=None, is_active=None, m
 
 class CommonSettings(BaseModel):
     MOVES: list = [[0, 0], [0, 0], [0, 0], [0, 0]]
+    GRID_MOVES: ClassVar[tuple[tuple[int, int], ...]] = ((-1, 0), (1, 0), (0, -1), (0, 1))
     FREE: Literal[0] = 0
     OBSTACLE: Literal[1] = 1
     empty_outside: bool = True
