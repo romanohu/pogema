@@ -20,7 +20,7 @@ def _make_sample_factory_integration(grid_config):
 class SingleAgentWrapper(Wrapper):
     def step(self, action):
         observations, rewards, terminated, truncated, infos = self.env.step(
-            [action] + [self.env.action_space.sample() for _ in range(self.get_num_agents() - 1)]
+            [action] + [self.env.action_space.sample() for _ in range(self.env.get_num_agents() - 1)]
         )
         return observations[0], rewards[0], terminated[0], truncated[0], infos[0]
 

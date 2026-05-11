@@ -8,7 +8,10 @@ from typing_extensions import Literal
 
 
 class GridConfig(CommonSettings, ):
-    ACTION_MOVES: ClassVar[list[list[int]]] = [[0, 0], [0, 0], [0, 0], [0, 0]]
+    ACTION_SCHEME_MOVES: ClassVar[dict[str, list[list[int]]]] = {
+        'default': [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]],
+        'oriented_v1': [[0, 0], [0, 0], [0, 0], [0, 0]],
+    }
     ACTION_FORWARD: ClassVar[int] = 0
     ACTION_TURN_LEFT: ClassVar[int] = 1
     ACTION_TURN_RIGHT: ClassVar[int] = 2
@@ -26,7 +29,7 @@ class GridConfig(CommonSettings, ):
     num_agents: Optional[int] = None
     possible_agents_xy: Optional[list] = None
     possible_targets_xy: Optional[list] = None
-    action_scheme: Literal['oriented_v1'] = 'oriented_v1'
+    action_scheme: Literal['default', 'oriented_v1'] = 'oriented_v1'
     initial_headings: Optional[list] = None
     collision_system: Literal['block_both', 'priority', 'soft'] = 'priority'
     persistent: bool = False
@@ -197,12 +200,14 @@ class GridConfig(CommonSettings, ):
         return [int(heading) for heading in v]
 
     def get_action_moves(self):
-        return self.ACTION_MOVES
+        return self.ACTION_SCHEME_MOVES[self.action_scheme]
 
     def get_num_actions(self):
-        return len(self.ACTION_MOVES)
+        return len(self.get_action_moves())
 
     def get_wait_action(self):
+        if self.action_scheme == 'default':
+            return 0
         return self.ACTION_WAIT
 
     @field_validator('map')

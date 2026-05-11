@@ -104,25 +104,29 @@ class Pogema(PogemaBase):
         if self.grid_config.observation_type == 'default':
             self.observation_space = gymnasium.spaces.Box(-1.0, 1.0, shape=(3, full_size, full_size))
         elif self.grid_config.observation_type == 'POMAPF':
-            self.observation_space: gymnasium.spaces.Dict = gymnasium.spaces.Dict(
+            observation_space = dict(
                 obstacles=gymnasium.spaces.Box(0.0, 1.0, shape=(full_size, full_size)),
                 agents=gymnasium.spaces.Box(0.0, 1.0, shape=(full_size, full_size)),
                 xy=gymnasium.spaces.Box(low=-1024, high=1024, shape=(2,), dtype=int),
                 target_xy=gymnasium.spaces.Box(low=-1024, high=1024, shape=(2,), dtype=int),
-                heading=gymnasium.spaces.Discrete(4),
             )
+            if self.grid_config.action_scheme == 'oriented_v1':
+                observation_space['heading'] = gymnasium.spaces.Discrete(4)
+            self.observation_space: gymnasium.spaces.Dict = gymnasium.spaces.Dict(observation_space)
         elif self.grid_config.observation_type == 'MAPF':
-            self.observation_space: gymnasium.spaces.Dict = gymnasium.spaces.Dict(
+            observation_space = dict(
                 obstacles=gymnasium.spaces.Box(0.0, 1.0, shape=(full_size, full_size)),
                 agents=gymnasium.spaces.Box(0.0, 1.0, shape=(full_size, full_size)),
                 xy=gymnasium.spaces.Box(low=-1024, high=1024, shape=(2,), dtype=int),
                 target_xy=gymnasium.spaces.Box(low=-1024, high=1024, shape=(2,), dtype=int),
-                heading=gymnasium.spaces.Discrete(4),
-                global_heading=gymnasium.spaces.Discrete(4),
                 # global_obstacles=None, # todo define shapes of global state variables
                 # global_xy=None,
                 # global_target_xy=None,
             )
+            if self.grid_config.action_scheme == 'oriented_v1':
+                observation_space['heading'] = gymnasium.spaces.Discrete(4)
+                observation_space['global_heading'] = gymnasium.spaces.Discrete(4)
+            self.observation_space: gymnasium.spaces.Dict = gymnasium.spaces.Dict(observation_space)
         else:
             raise ValueError(f"Unknown observation type: {self.grid.config.observation_type}")
 
@@ -190,7 +194,8 @@ class Pogema(PogemaBase):
                 result.update(global_obstacles=global_obstacles)
                 result['global_xy'] = global_agents_xy[agent_idx]
                 result['global_target_xy'] = global_targets_xy[agent_idx]
-                result['global_heading'] = self.grid.get_heading(agent_idx)
+                if self.grid.config.action_scheme == 'oriented_v1':
+                    result['global_heading'] = self.grid.get_heading(agent_idx)
 
             return results
         else:
@@ -206,7 +211,8 @@ class Pogema(PogemaBase):
                       'agents': self.grid.get_positions(agent_idx),
                       'xy': agents_xy_relative[agent_idx],
                       'target_xy': targets_xy_relative[agent_idx]}
-            result['heading'] = self.grid.get_heading(agent_idx)
+            if self.grid.config.action_scheme == 'oriented_v1':
+                result['heading'] = self.grid.get_heading(agent_idx)
 
             results.append(result)
         return results

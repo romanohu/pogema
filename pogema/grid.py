@@ -155,6 +155,10 @@ class Grid:
         action = int(action)
         x, y = self.positions_xy[agent_id]
 
+        if self.config.action_scheme == 'default':
+            dx, dy = self.config.get_action_moves()[action]
+            return x + dx, y + dy, heading
+
         if action == 0:  # forward
             dx, dy = self._oriented_delta(heading)
             return x + dx, y + dy, heading
@@ -294,7 +298,7 @@ class Grid:
             raise ValueError(f"Can't force agent to blocked position {x} {y}")
         self.positions_xy[agent_id] = x, y
         self.positions[self.positions_xy[agent_id]] = self.config.OBSTACLE
-        if self.config.action_scheme == 'oriented_v1' and heading is not None:
+        if heading is not None:
             self.headings[agent_id] = int(heading) % 4
 
     def has_obstacle(self, x, y):

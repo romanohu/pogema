@@ -9,6 +9,9 @@ class MultiTimeLimit(TimeLimit):
     def get_num_agents(self):
         return self.env.get_num_agents()
 
+    def sample_actions(self):
+        return self.env.sample_actions()
+
     def step(self, action):
         observation, reward, terminated, truncated, info = self.env.step(action)
         self._elapsed_steps += 1

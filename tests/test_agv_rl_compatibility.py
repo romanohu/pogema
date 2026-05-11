@@ -24,6 +24,55 @@ def test_random_agv_environment_resets_and_steps_with_four_actions():
     assert all(0 <= int(action) < 4 for action in actions)
 
 
+def test_default_action_scheme_uses_five_cardinal_actions():
+    env = pogema_v0(
+        GridConfig(
+            action_scheme="default",
+            num_agents=1,
+            observation_type="MAPF",
+            on_target="nothing",
+            agents_xy=[(1, 1)],
+            targets_xy=[(1, 2)],
+            map="....\n....\n....\n....",
+            density=0.0,
+            obs_radius=1,
+        )
+    )
+
+    observations, _infos = env.reset()
+    core_env = env.unwrapped
+
+    assert env.action_space.n == 5
+    assert "heading" not in observations[0]
+    assert "global_heading" not in observations[0]
+
+    env.step([1])
+    assert core_env.get_agents_xy(ignore_borders=True)[0] == [0, 1]
+
+
+def test_oriented_action_scheme_stays_four_actions_with_heading():
+    env = pogema_v0(
+        GridConfig(
+            action_scheme="oriented_v1",
+            num_agents=1,
+            observation_type="MAPF",
+            on_target="nothing",
+            initial_headings=[0],
+            agents_xy=[(1, 1)],
+            targets_xy=[(1, 2)],
+            map="....\n....\n....\n....",
+            density=0.0,
+            obs_radius=1,
+        )
+    )
+
+    observations, _infos = env.reset()
+
+    assert env.action_space.n == 4
+    assert observations[0]["heading"] == 0
+    assert observations[0]["global_heading"] == 0
+
+
 def test_gymnasium_single_agent_wrapper_supports_reset_seed_and_step():
     env = pogema_v0(GridConfig(
         integration="gymnasium",

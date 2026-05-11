@@ -19,6 +19,9 @@ class AbstractMetric(Wrapper):
     def get_num_agents(self):
         return self.env.get_num_agents()
 
+    def sample_actions(self):
+        return self.env.sample_actions()
+
     def step(self, action):
         obs, reward, terminated, truncated, infos = self.env.step(action)
         finished = all(truncated) or all(terminated)
